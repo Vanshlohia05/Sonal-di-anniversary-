@@ -23,6 +23,26 @@ function CameraController({ targetZ }: { targetZ: React.MutableRefObject<number>
 export default function GalleryGlobe({ userPhotos, mode, gyroEnabled = true, onSelect }: { userPhotos: string[], mode: 'small' | 'repeat' | 'normal', gyroEnabled?: boolean, onSelect: (image: string) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const [isMobileDevice, setIsMobileDevice] = useState(() => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    return isMobileUA || window.innerWidth < 1024;
+  });
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const ua = navigator.userAgent || '';
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+      const isSmallScreen = window.innerWidth < 1024 || window.innerHeight < 1024;
+      const hasTouch = navigator.maxTouchPoints > 0;
+      setIsMobileDevice(isMobileUA || (isSmallScreen && hasTouch));
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   let totalCards = 48;
   let dynamicRadius = 6.0;
 
@@ -37,7 +57,7 @@ export default function GalleryGlobe({ userPhotos, mode, gyroEnabled = true, onS
     dynamicRadius = Math.max(2.0, Math.sqrt(totalCards / 48) * 6.0);
   }
 
-  const defaultCameraZ = isMobile ? dynamicRadius * 4.8 : dynamicRadius * 3.3;
+  const defaultCameraZ = isMobileDevice ? dynamicRadius * 4.8 : dynamicRadius * 3.3;
 
   // Interaction State Maps
   const targetZ = useRef(defaultCameraZ);
@@ -47,6 +67,7 @@ export default function GalleryGlobe({ userPhotos, mode, gyroEnabled = true, onS
   const lastMouse = useRef({ x: 0, y: 0 });
   const lastInteractionTime = useRef(Date.now() - 3000);
   const pointerPos = useRef({ x: 0, y: 0 });
+  const gyroValues = useRef({ x: 0, y: 0 });
 
   // Cursor UI state
   const [isMouseDown, setIsMouseDown] = useState(false);
@@ -59,7 +80,10 @@ export default function GalleryGlobe({ userPhotos, mode, gyroEnabled = true, onS
   }, [defaultCameraZ]);
 
   useEffect(() => {
-    if (!gyroEnabled) return;
+    if (!gyroEnabled) {
+      gyroValues.current = { x: 0, y: 0 };
+      return;
+    }
 
     const handleOrientation = (event: DeviceOrientationEvent) => {
       // Try to only influence when not actively dragging
@@ -68,22 +92,22 @@ export default function GalleryGlobe({ userPhotos, mode, gyroEnabled = true, onS
       const { beta, gamma } = event; // beta is front-to-back tilt in degrees (-180 to 180), gamma is left-to-right tilt in degrees (-90 to 90)
       if (beta === null || gamma === null) return;
 
-      // Add a slight gyroscope velocity. Adjust these multipliers to tune the feel.
+      // Calculate gyroscope velocity based on device tilt. Adjust these multipliers to tune the feel.
       const gyroVelocityX = (gamma / 90) * 0.05; 
       
       // For beta, assume neutral holding is around 45 to 60 degrees.
       const normalizedBeta = Math.max(-90, Math.min(90, beta - 60));
       const gyroVelocityY = (normalizedBeta / 90) * 0.05;
 
-      // Add to velocity state, will be balanced by friction
-      velocityState.current.x += gyroVelocityX * 0.02;
-      velocityState.current.y += gyroVelocityY * 0.02;
-
-      lastInteractionTime.current = Date.now();
+      // Store in ref to apply exactly once per frame inside useFrame loop
+      gyroValues.current = { x: gyroVelocityX, y: gyroVelocityY };
     };
 
     window.addEventListener('deviceorientation', handleOrientation);
-    return () => window.removeEventListener('deviceorientation', handleOrientation);
+    return () => {
+      window.removeEventListener('deviceorientation', handleOrientation);
+      gyroValues.current = { x: 0, y: 0 };
+    };
   }, [gyroEnabled]);
 
   useEffect(() => {
@@ -98,7 +122,7 @@ export default function GalleryGlobe({ userPhotos, mode, gyroEnabled = true, onS
       targetZ.current += delta * 0.015;
       
       // Clamp values so user can't zoom out infinitely.
-      targetZ.current = Math.max(-dynamicRadius * 0.8, Math.min(dynamicRadius * (isMobile ? 5.8 : 4.6), targetZ.current));
+      targetZ.current = Math.max(-dynamicRadius * 0.8, Math.min(dynamicRadius * (isMobileDevice ? 5.8 : 4.6), targetZ.current));
     };
 
     const container = containerRef.current;
@@ -159,7 +183,7 @@ export default function GalleryGlobe({ userPhotos, mode, gyroEnabled = true, onS
       
       const delta = initialPinchDistance.current - dist;
       targetZ.current += delta * 0.05;
-      targetZ.current = Math.max(-dynamicRadius * 0.8, Math.min(dynamicRadius * (isMobile ? 5.8 : 4.6), targetZ.current));
+      targetZ.current = Math.max(-dynamicRadius * 0.8, Math.min(dynamicRadius * (isMobileDevice ? 5.8 : 4.6), targetZ.current));
       
       initialPinchDistance.current = dist;
     }
@@ -203,7 +227,7 @@ export default function GalleryGlobe({ userPhotos, mode, gyroEnabled = true, onS
       >
         <CameraController targetZ={targetZ} />
         <Suspense fallback={null}>
-          <Sparkles count={isMobile ? 100 : 500} scale={dynamicRadius * 3} size={isMobile ? 1 : 2} speed={0.1} opacity={isMobile ? 0.1 : 0.3} color="#ffffff" />
+          <Sparkles count={isMobileDevice ? 100 : 500} scale={dynamicRadius * 3} size={isMobileDevice ? 1 : 2} speed={0.1} opacity={isMobileDevice ? 0.1 : 0.3} color="#ffffff" />
           <Globe 
             userPhotos={userPhotos}
             totalCards={totalCards}
@@ -214,8 +238,9 @@ export default function GalleryGlobe({ userPhotos, mode, gyroEnabled = true, onS
             lastInteraction={lastInteractionTime}
             handPaused={handPaused}
             onSelect={onSelect}
+            gyroValues={gyroValues}
           />
-          {!isMobile && (
+          {!isMobileDevice && (
             <EffectComposer>
             <Bloom mipmapBlur intensity={0.5} luminanceThreshold={0.8} />
           </EffectComposer>

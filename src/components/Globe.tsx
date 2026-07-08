@@ -15,9 +15,10 @@ interface GlobeProps {
   lastInteraction: React.MutableRefObject<number>;
   handPaused?: boolean;
   onSelect: (image: string) => void;
+  gyroValues?: React.RefObject<{ x: number, y: number }>;
 }
 
-export default function Globe({ userPhotos, totalCards, radius, rotationState, velocityState, isDragging, lastInteraction, handPaused = false, onSelect }: GlobeProps) {
+export default function Globe({ userPhotos, totalCards, radius, rotationState, velocityState, isDragging, lastInteraction, handPaused = false, onSelect, gyroValues }: GlobeProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [hoveredText1, setHoveredText1] = useState(false);
   const [hoveredText2, setHoveredText2] = useState(false);
@@ -48,6 +49,12 @@ export default function Globe({ userPhotos, totalCards, radius, rotationState, v
       velocityState.current.x = 0;
       velocityState.current.y = 0;
     } else if (!isDragging.current) {
+      // Add gyroscope input smoothly once per frame if available
+      if (gyroValues && gyroValues.current) {
+        velocityState.current.x += gyroValues.current.x * 0.02;
+        velocityState.current.y += gyroValues.current.y * 0.02;
+      }
+
       // Apply momentum decay (friction/damping)
       velocityState.current.x *= 0.92;
       velocityState.current.y *= 0.92;
