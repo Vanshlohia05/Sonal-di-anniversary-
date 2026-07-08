@@ -203,7 +203,7 @@ export default function GalleryGlobe({ userPhotos, mode, gyroEnabled = true, onS
       >
         <CameraController targetZ={targetZ} />
         <Suspense fallback={null}>
-          <Sparkles count={500} scale={dynamicRadius * 3} size={2} speed={0.4} opacity={0.3} color="#ffffff" />
+          <Sparkles count={isMobile ? 100 : 500} scale={dynamicRadius * 3} size={isMobile ? 1 : 2} speed={0.1} opacity={isMobile ? 0.1 : 0.3} color="#ffffff" />
           <Globe 
             userPhotos={userPhotos}
             totalCards={totalCards}
@@ -215,9 +215,11 @@ export default function GalleryGlobe({ userPhotos, mode, gyroEnabled = true, onS
             handPaused={handPaused}
             onSelect={onSelect}
           />
-          <EffectComposer>
+          {!isMobile && (
+            <EffectComposer>
             <Bloom mipmapBlur intensity={0.5} luminanceThreshold={0.8} />
           </EffectComposer>
+          )}
         </Suspense>
       </Canvas>
     </div>
