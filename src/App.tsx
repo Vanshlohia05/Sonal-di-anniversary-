@@ -11,10 +11,26 @@ export default function App() {
   // To revert to the upload screen later, comment out the import.meta.glob and change to `useState<string[]>([])`
   // @ts-ignore
   const allPhotos = import.meta.glob('/public/photos/*.{jpg,jpeg,png,JPG,JPEG,PNG}', { eager: true, query: '?url', import: 'default' });
-  const photoUrls = Object.values(allPhotos) as string[];
+  const rawPhotoUrls = Object.values(allPhotos) as string[];
+  const photoUrls = rawPhotoUrls.map((url) => {
+    if (typeof url === 'string') {
+      // Remove '/public' prefix so `/public/photos/...` becomes `/photos/...` which is correctly served in production
+      return url.startsWith('/public/') ? url.replace(/^\/public/, '') : url;
+    }
+    return '';
+  }).filter(Boolean);
   
+  const FALLBACK_PHOTOS = [
+    'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=600&q=80',
+  ];
+
   const [userPhotos, setUserPhotos] = useState<string[]>(
-    photoUrls.length > 0 ? photoUrls : ['/photos/1.jpg', '/photos/2.jpg', '/photos/3.jpg']
+    photoUrls.length > 0 ? photoUrls : FALLBACK_PHOTOS
   );
   const [globeMode, setGlobeMode] = useState<'small' | 'repeat' | 'normal'>('repeat');
   const [selectedCard, setSelectedCard] = useState<{ image: string } | null>(null);
